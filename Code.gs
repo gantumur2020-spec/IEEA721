@@ -14,7 +14,7 @@ const ROSTER_SHEET = COURSE + '_Оюутан';
 const BD_SHEET = COURSE + '_БиеДаалт';
 const SUM_SHEET = COURSE + '_НэгдсэнДүн';
 const BD_HEAD = ['Огноо','Код','Нэр','Анги','БД','Бичвэр','Файл','Файлын нэр','Дүн','Тайлбар','Дүгнэсэн'];
-const BD_N = 6;
+const BD_N = 8;
 /* Хувилбар = Students хуудсан дахь дараалал (1–10, 11 дэх оюутан → 1 …) */
 function variant_(code) {
   const c = norm_(code), R = roster_();
@@ -240,7 +240,7 @@ function writeSummary() {
     for (let i = 1; i <= BD_N; i++) { const b = (r.bd || {})[i]; const g = b && b.grade !== '' ? Number(b.grade) : ''; line.push(g === '' ? (b ? 'илгээсэн' : '') : g); bt += g === '' ? 0 : g; }
     const fin = r.final ? r.final.score : '';
     let sec = 0, days = 0; Object.keys(r.study || {}).forEach(d => { sec += r.study[d].sec; days++; });
-    line.push(bt, fin, Math.round((tt / 120 * 40 + bt + (fin || 0)) * 10) / 10, Math.round(sec / 60), days, r.logins || 0, r.lastLogin ? new Date(r.lastLogin) : '');
+    line.push(bt, fin, Math.round((tt / 120 * 40 + bt / (BD_N * 5) * 30 + (fin || 0)) * 10) / 10, Math.round(sec / 60), days, r.logins || 0, r.lastLogin ? new Date(r.lastLogin) : '');
     out.push(line);
   });
   let s = ss_().getSheetByName(SUM_SHEET);
