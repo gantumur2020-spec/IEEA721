@@ -2,18 +2,29 @@
    I.EEA721 «Цахилгаан станцын орчин үеийн технологи» — оноо хадгалах сервер
    Google Apps Script (Google Sheets-тэй холбоотой). Үнэгүй.
    Тохиргоо: Project Settings → Script Properties → PW = багшийн нууц үг
-   Хуудсууд: Log (бүх үйлдэл), Students (оюутны жагсаалт: код, нэр, анги),
-             BD (бие даалтын илгээлт ба дүн). Хавсаргасан файл Google Drive-ийн
+   Хуудсууд (нэрэнд хичээлийн код): EEA721_Оюутан (жагсаалт: код, нэр, анги —
+             багш шууд засна), EEA721_Log (нэвтрэлт, үзсэн хугацаа, тестийн хариулт),
+             EEA721_БиеДаалт (илгээлт, дүн), EEA721_НэгдсэнДүн (автоматаар шинэчлэгдэнэ). Хавсаргасан файл Google Drive-ийн
              «EEA721_Бие_даалт» хавтаст хадгалагдана (багшид л харагдана).
    ===================================================================== */
-const SHEET = 'Log';
+const COURSE = 'EEA721';                 // хуудасны нэрт хичээлийн код орно
+const SHEET = COURSE + '_Log';
 const HEAD = ['Огноо','SID','Код','Нэр','Анги','Төрөл','Түлхүүр','Оноо','Нийт','Секунд','Өдөр','Лекц','Асуулт'];
-const ROSTER_SHEET = 'Students';
-const BD_SHEET = 'BD';
+const ROSTER_SHEET = COURSE + '_Оюутан';
+const BD_SHEET = COURSE + '_БиеДаалт';
+const SUM_SHEET = COURSE + '_НэгдсэнДүн';
 const BD_HEAD = ['Огноо','Код','Нэр','Анги','БД','Бичвэр','Файл','Файлын нэр','Дүн','Тайлбар','Дүгнэсэн'];
-const BD_N = 4;
+const BD_N = 6;
+/* Хувилбар = Students хуудсан дахь дараалал (1–10, 11 дэх оюутан → 1 …) */
+function variant_(code) {
+  const c = norm_(code), R = roster_();
+  const i = R.findIndex(r => norm_(r.code) === c);
+  return i < 0 ? null : (i % 10) + 1;
+}
 
-function ss_() { return SpreadsheetApp.getActiveSpreadsheet(); }
+/* Sheet-ийн ID (хаягийн /d/…/ хэсэг). Хоосон бол скриптийн харьяалагдах Sheet-ийг ашиглана. */
+const SHEET_ID = '1bljYk5WqOq5DgNBqHDAx-zgq2pTHduoH33ENripXIco';
+function ss_() { return SHEET_ID ? SpreadsheetApp.openById(SHEET_ID) : SpreadsheetApp.getActiveSpreadsheet(); }
 function sh_() {
   let s = ss_().getSheetByName(SHEET);
   if (!s) { s = ss_().insertSheet(SHEET); s.appendRow(HEAD); s.setFrozenRows(1); }
@@ -75,6 +86,10 @@ function doPost(e) {
     const p = JSON.parse(e.postData.contents);
     const act = String(p.action || '');
     /* --- багшийн үйлдэл --- */
+    if (act === 'teacher') {
+      if (!pwOk_(p.pw)) return out_({ ok: false, error: 'bad_pw' });
+      return out_({ ok: true, rows: aggregate_(), roster: roster_(), theme: theme_() });
+    }
     if (act === 'grade') {
       if (!pwOk_(p.pw)) return out_({ ok: false, error: 'bad_pw' });
       const n = Number(p.bd), L = bdLatest_(p.code, n);
@@ -82,6 +97,7 @@ function doPost(e) {
       const g = String(p.grade == null ? '' : p.grade).trim();
       if (g !== '' && !(Number(g) >= 0 && Number(g) <= 5)) return out_({ ok: false, error: 'bad_grade' });
       bdSheet_().getRange(L.row, 9, 1, 3).setValues([[g === '' ? '' : Number(g), clip_(p.comment, 500), g === '' ? '' : new Date()]]);
+      try { writeSummary(); } catch (x) {}
       return out_({ ok: true });
     }
     if (act === 'setRoster' || act === 'setTheme') {
@@ -97,6 +113,7 @@ function doPost(e) {
       const s = rosterSheet_();
       if (s.getLastRow() > 1) s.getRange(2, 1, s.getLastRow() - 1, 3).clearContent();
       if (list.length) s.getRange(2, 1, list.length, 3).setValues(list);
+      try { writeSummary(); } catch (x) {}
       return out_({ ok: true, count: list.length });
     }
     /* --- оюутны үйлдэл: зөвхөн жагсаалтад байгаа код --- */
@@ -117,6 +134,7 @@ function doPost(e) {
         url = bdFolder_().createFile(blob).getUrl();
       }
       bdSheet_().appendRow([new Date(), st.code, st.name, st.group, n, clip_(p.text, 45000), url, fname, '', '', '']);
+      try { writeSummary(); } catch (x) {}
       return out_({ ok: true, file: !!url });
     }
     const s = sh_();
@@ -131,7 +149,8 @@ function doPost(e) {
     s.appendRow([new Date(), clip_(p.sid, 40), who, st.name, st.group, act,
       clip_(p.key, 10), p.score == null ? '' : Number(p.score), p.total == null ? '' : Number(p.total),
       p.sec == null ? '' : Number(p.sec), clip_(p.date, 10),
-      (p.lec || []).map(Number).join(','), (p.items || []).join(',')]);
+      (p.lec || []).map(Number).join(','), clip_((p.items || []).join(','), 4000)]);
+    if (act === 'result') { try { writeSummary(); } catch (x) {} }
     return out_({ ok: true });
   } catch (err) {
     return out_({ ok: false, error: String(err) });
@@ -146,7 +165,8 @@ function doGet(e) {
   if (prm.action === 'login') {
     const st = findStudent_(prm.code);
     if (!st || norm_(st.name) !== norm_(prm.name)) return out_({ ok: false, error: 'not_found' });
-    return out_({ ok: true, code: st.code, name: st.name, group: st.group });
+    try { sh_().appendRow([new Date(), clip_(prm.sid, 40), st.code, st.name, st.group, 'login', '', '', '', '', Utilities.formatDate(new Date(), 'Asia/Ulaanbaatar', 'yyyy-MM-dd'), '', '']); } catch (x) {}
+    return out_({ ok: true, code: st.code, name: st.name, group: st.group, v: variant_(st.code) });
   }
   if (prm.action === 'mybd') {
     const st = findStudent_(prm.code);
@@ -156,7 +176,7 @@ function doGet(e) {
       const L = bdLatest_(st.code, n);
       if (L) { const it = bdItem_(L.v); items[n] = { at: it.at, file: !!it.url, grade: it.grade, comment: it.comment }; }
     }
-    return out_({ ok: true, items: items });
+    return out_({ ok: true, items: items, v: variant_(st.code) });
   }
   if (prm.action === 'teacher') {
     if (!pwOk_(prm.pw)) return out_({ ok: false, error: 'bad_pw' });
@@ -188,6 +208,10 @@ function aggregate_() {
         const t = o[k] || (o[k] = { best: 0, attempts: 0, at: '' });
         t.best = Math.max(t.best, sc); t.attempts++; t.at = at; t.last = sc;
       }
+      if (r[12]) { (o.ans || (o.ans = [])).push({ key: k, at: at, score: sc, total: Number(r[8]) || 0, sec: Number(r[9]) || 0, items: String(r[12]) }); }
+      if (k === 'final' && o.final && !o.final.items && r[12]) o.final.items = String(r[12]);
+    } else if (r[5] === 'login') {
+      o.logins = (o.logins || 0) + 1; o.lastLogin = at;
     }
   }
   const b = bdSheet_().getDataRange().getValues();
@@ -200,11 +224,58 @@ function aggregate_() {
   return Object.keys(m).map(k => m[k]);
 }
 
+/* Нэгдсэн дүнгийн хуудас (оюутан бүр нэг мөр) */
+function writeSummary() {
+  const rows = aggregate_();
+  const head = ['№', 'Код', 'Овог нэр', 'Анги'];
+  for (let i = 1; i <= 12; i++) head.push('Т' + i);
+  head.push('Тест /120');
+  for (let i = 1; i <= BD_N; i++) head.push('БД' + i);
+  head.push('БД /' + BD_N * 5, 'Шалгалт /30', 'Нийт оноо', 'Үзсэн минут', 'Өдөр', 'Нэвтэрсэн удаа', 'Сүүлд нэвтэрсэн');
+  const out = [head];
+  rows.forEach((r, k) => {
+    const line = [k + 1, r.code, r.name, r.group]; let tt = 0;
+    for (let i = 1; i <= 12; i++) { const t = r['t' + ('0' + i).slice(-2)]; line.push(t ? t.best : ''); tt += t ? t.best : 0; }
+    line.push(tt); let bt = 0;
+    for (let i = 1; i <= BD_N; i++) { const b = (r.bd || {})[i]; const g = b && b.grade !== '' ? Number(b.grade) : ''; line.push(g === '' ? (b ? 'илгээсэн' : '') : g); bt += g === '' ? 0 : g; }
+    const fin = r.final ? r.final.score : '';
+    let sec = 0, days = 0; Object.keys(r.study || {}).forEach(d => { sec += r.study[d].sec; days++; });
+    line.push(bt, fin, Math.round((tt / 120 * 40 + bt + (fin || 0)) * 10) / 10, Math.round(sec / 60), days, r.logins || 0, r.lastLogin ? new Date(r.lastLogin) : '');
+    out.push(line);
+  });
+  let s = ss_().getSheetByName(SUM_SHEET);
+  if (!s) s = ss_().insertSheet(SUM_SHEET);
+  s.clearContents();
+  s.getRange(1, 1, out.length, head.length).setValues(out);
+  s.setFrozenRows(1); s.setFrozenColumns(3);
+  s.getRange(1, 1, 1, head.length).setFontWeight('bold').setBackground('#fdeaea');
+  s.getRange(1, head.length + 2).setValue('Шинэчилсэн: ' + Utilities.formatDate(new Date(), 'Asia/Ulaanbaatar', 'yyyy-MM-dd HH:mm'));
+}
+function onOpen() {   // Sheet-тэй холбоотой (bound) скриптэд цэс нэмнэ
+  try { SpreadsheetApp.getUi().createMenu('EEA721').addItem('Нэгдсэн дүн шинэчлэх', 'writeSummary').addToUi(); } catch (e) {}
+}
+/* Нэгдсэн дүнг цаг тутам шинэчлэх (нэг удаа ▶ Run) */
+function installHourlyTrigger() {
+  ScriptApp.getProjectTriggers().forEach(t => { if (t.getHandlerFunction() === 'writeSummary') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('writeSummary').timeBased().everyHours(1).create();
+}
+/* Хуудсуудыг үүсгэх (нэг удаа ▶ Run): жагсаалт, лог, бие даалт, нэгдсэн дүн */
+function setupSheets() {
+  rosterSheet_(); sh_(); bdSheet_();
+  if (rosterSheet_().getLastRow() < 2) seedRoster();
+  writeSummary();
+  const d = ss_().getSheetByName('Sheet1') || ss_().getSheetByName('Хуудас1');
+  if (d && ss_().getSheets().length > 1) ss_().deleteSheet(d);
+}
 /* Эхний жагсаалт: Apps Script засварлагч дээр энэ функцийг нэг удаа ▶ Run хийнэ (Drive-ийн зөвшөөрлийг давхар асууна). */
 function seedRoster() {
   // Жишээ мөр — өөрийн ангийн жагсаалтаар солино (эсвэл вэбийн «Тохиргоо» хэсгээс Excel-ээс хуулж оруулна).
   const list = [
-    ['B000000001', 'Т.Туршилт', 'Туршилт']
+    ['M.ES25E001', 'Б.НЯМСҮРЭН', 'ЭХИС'],
+    ['M.ES25E009', 'Ч.АМАРБАЯСГАЛАН', 'ЭХИС'],
+    ['M.ES25E010', 'М.АРИУНСАЙХАН', 'ЭХИС'],
+    ['M.ES25E708', 'Т.НАМСРАЙ', 'ЭХИС'],
+    ['M.ES26E003', 'Н.МӨНХБААТАР', 'ЭХИС']
   ];
   const s = rosterSheet_();
   if (s.getLastRow() > 1) s.getRange(2, 1, s.getLastRow() - 1, 3).clearContent();
