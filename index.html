@@ -280,6 +280,9 @@ td.c,th.c{text-align:center;font-family:var(--f-mono);font-variant-numeric:tabul
 details>summary{cursor:pointer}
 .labgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
 .labgrid input{font-family:var(--f-mono)}
+.rtab input{width:100%;min-width:90px;border:1px solid var(--line);border-radius:6px;padding:5px 8px;font:inherit;font-size:13.5px;background:var(--surface);color:var(--fg)}
+.rtab td{padding:4px 6px}.rtab tfoot td{background:var(--accent-soft)}
+.btn.sm{padding:5px 10px;font-size:12.5px}
 </style>
 
 <div class="app">
@@ -358,7 +361,9 @@ function viewLogin(){
   return `<div class="login"><section class="hero"><span class="code">ХИЧЭЭЛ ${COURSE.code}</span><h1 style="font-size:24px">${COURSE.title}</h1><p style="margin:8px 0 0">Хичээлд бүртгэлтэй оюутан өөрийн кодоор нэвтэрнэ.</p><div class="loginbook"><img src="cover.jpg" alt="Ш.Гантөмөр «Цахилгаан станц, дэд станц» номын хавтас"><span class="small">Үндсэн сурах бичиг: Ш.Гантөмөр «Цахилгаан станц, дэд станц»</span></div></section>
   <section class="card"><h2>Оюутан нэвтрэх</h2><form id="lgf" style="display:flex;flex-direction:column;gap:12px"><label class="field" for="lgc">Оюутны код<input id="lgc" autocomplete="username" placeholder="Жишээ: B252183024" required></label><label class="field" for="lgn">Овог нэр<input id="lgn" autocomplete="name" placeholder="Жишээ: Т.Эрдэнэсүх" required></label><button class="btn pri" type="submit">Нэвтрэх</button></form><div id="lgm"></div>
   <p class="small muted" style="margin-top:12px">Кодоо оюутны үнэмлэх дээрх шиг (B…), нэрээ овгийн үсэгтэй бичнэ. Нэвтэрч чадахгүй бол багшид хандана уу.</p></section>
-  <p class="small" style="text-align:center"><a href="#teacher">Багш нэвтрэх</a></p></div>`}
+  <section class="card guest"><h2>Зочин</h2><p class="small muted">Бүртгэлгүй хүн хичээлийн нүүр хуудсыг л үзнэ (лекц, тест, бие даалт, лаборатори хаалттай).</p><button class="btn ghost" id="guestBtn" type="button">👁 Зочноор үзэх</button></section><p class="small" style="text-align:center"><a href="#teacher">Багш нэвтрэх</a></p></div>`}
+let GUEST=ss.get("guest")==="1";
+function viewGuestLock(){return `<div class="layout full"><div class="col"><section class="card"><h2>Зочин горим</h2><div class="status warn">Энэ хэсгийг зөвхөн хичээлд бүртгэлтэй оюутан үзнэ. Зочин зөвхөн нүүр хуудсыг үзэх боломжтой.</div><div class="formrow" style="margin-top:12px"><button class="btn pri" type="button" data-guestout="1">Оюутнаар нэвтрэх</button> <a class="btn ghost" href="#home">← Нүүр</a></div></section></div></div>`}
 async function doLogin(e){
   e.preventDefault();const code=document.getElementById("lgc").value.trim(),name=document.getElementById("lgn").value.trim();const m=document.getElementById("lgm");
   m.innerHTML='<p class="small muted">Шалгаж байна…</p>';
@@ -404,6 +409,7 @@ document.addEventListener("visibilitychange",()=>{if(document.visibilityState===
 
 function nav(){
   const h=location.hash.slice(1)||"home";
+  if(!AUTH&&!UNLOCK&&GUEST){document.getElementById("nav").innerHTML=`<a href="#home" class="${h==="home"?"on":""}">${ic.home}Нүүр (зочин)</a><div class="grp">Нэвтрэх</div><a href="#home" data-guestout="1">${ic.me}Оюутан нэвтрэх</a><a href="#teacher" class="${h.startsWith("teacher")?"on":""}">${ic.lock}Багш нэвтрэх</a>`;return}
   if(!AUTH&&!UNLOCK){document.getElementById("nav").innerHTML=`<a href="#home" class="${h==="home"?"on":""}">${ic.me}Оюутан нэвтрэх</a><div class="grp">Багш</div><a href="#teacher" class="${h.startsWith("teacher")?"on":""}">${ic.lock}Багш нэвтрэх</a>`;return}
   const a=(id,label,icon)=>`<a href="#${id}" class="${h===id?"on":""}">${ic[icon]}${label}</a>`;
   const lm=/^(lecture|test)-(\d+)$/.exec(h);const open=!!store.get("lecOpen",false);
@@ -634,8 +640,24 @@ function viewSettings(){
   ${[["Бараан цэс",0],["Цайвар цэс",1]].map(([g,l])=>`<div class="swgrp">${g}</div><div class="swatches">${Object.entries(THEMES).filter(([k,t])=>!!t.light===!!l).map(([k,t])=>`<button type="button" class="sw ${k===cur?"on":""}" data-th="${k}"><i style="background:${t.hero}"><b style="background:${t.navy}"></b></i><span>${t.name}</span></button>`).join("")}</div>`).join("")}
   <div class="formrow"><label class="field" for="accIn" style="flex:0 0 auto">Өөр товчны өнгө<input type="color" id="accIn" value="${(THEME&&THEME.accent)||THEMES[cur].accent}" style="width:70px;height:38px;padding:2px"></label><button class="btn pri" id="thSave">Өнгийг хадгалах</button></div><div id="thMsg"></div></section>
   <section class="card"><h2>Оюутны жагсаалт (${ROSTER.length})</h2><p class="small muted">Зөвхөн энэ жагсаалтад байгаа оюутан код, нэрээрээ нэвтэрнэ. Мөр бүрт: <b>код, овог нэр, сургууль/анги</b> (Excel-ээс хуулж тавьж болно — таслал эсвэл Tab-аар тусгаарлана).</p>
-  <textarea id="rosterIn" class="roster" spellcheck="false">${esc(ROSTER.map(r=>[r.code,r.name,r.group].join(", ")).join("\n"))}</textarea>
+  <div class="tbl"><table class="rtab"><thead><tr><th class="c">№</th><th>Оюутны код</th><th>Овог нэр</th><th>Сургууль/анги</th><th></th></tr></thead><tbody id="rtBody"></tbody>
+  <tfoot><tr><td class="c">+</td><td><input id="rnCode" placeholder="N.ES26E108"></td><td><input id="rnName" placeholder="Б.БАТ"></td><td><input id="rnGroup" placeholder="ДаТС"></td><td><button class="btn pri sm" type="button" id="rnAdd">＋ Нэмэх</button></td></tr></tfoot></table></div>
+  <details style="margin-top:10px"><summary class="small">Бөөнөөр оруулах (Excel-ээс хуулж тавих)</summary><textarea id="rosterIn" class="roster" spellcheck="false">${esc(ROSTER.map(r=>[r.code,r.name,r.group].join(", ")).join("\n"))}</textarea><button class="btn ghost sm" type="button" id="rtFromTxt">Бичвэрээс хүснэгт шинэчлэх</button></details>
   <div class="formrow" style="margin-top:10px"><button class="btn pri" id="rsSave">Жагсаалт хадгалах</button></div><div id="rsMsg"></div></section></div></div>`}
+let RED=null;
+function rosterBind(){const tb=document.getElementById("rtBody");if(!tb)return;const ta=document.getElementById("rosterIn");RED=ROSTER.map(r=>({...r}));
+  const sync=()=>{ta.value=RED.map(r=>[r.code,r.name,r.group].join(", ")).join("\n")};
+  const draw=()=>{tb.innerHTML=RED.map((r,i)=>`<tr><td class="c">${i+1}</td><td><input data-ri="${i}" data-rf="code" value="${esc(r.code)}"></td><td><input data-ri="${i}" data-rf="name" value="${esc(r.name)}"></td><td><input data-ri="${i}" data-rf="group" value="${esc(r.group)}"></td><td><button class="btn ghost sm" type="button" data-rdel="${i}">✕ Хасах</button></td></tr>`).join("");
+    tb.querySelectorAll("input").forEach(inp=>inp.oninput=()=>{RED[+inp.dataset.ri][inp.dataset.rf]=inp.value.trim();sync()});
+    tb.querySelectorAll("[data-rdel]").forEach(b=>b.onclick=()=>{const r=RED[+b.dataset.rdel];RED.splice(+b.dataset.rdel,1);draw();document.getElementById("rsMsg").innerHTML=`<div class="status warn">${esc(r.code)} ${esc(r.name)} хасагдлаа — «Жагсаалт хадгалах» дарж хадгална уу.</div>`});sync()};
+  document.getElementById("rnAdd").onclick=()=>{const c=document.getElementById("rnCode"),n=document.getElementById("rnName"),g=document.getElementById("rnGroup");
+    const r={code:c.value.trim(),name:n.value.trim(),group:g.value.trim()};const m=document.getElementById("rsMsg");
+    if(!(/^[A-Za-zА-Яа-я0-9._-]{5,20}$/.test(r.code)&&/\d/.test(r.code))||!r.name){m.innerHTML='<div class="status bad">Код (жишээ N.ES26E108), овог нэрийг бүрэн бичнэ үү.</div>';return}
+    if(RED.some(x=>x.code.toUpperCase()===r.code.toUpperCase())){m.innerHTML='<div class="status bad">Энэ код жагсаалтад байна.</div>';return}
+    if(!r.group&&RED.length)r.group=RED[RED.length-1].group;
+    RED.push(r);c.value="";n.value="";m.innerHTML='<div class="status warn">Нэмэгдлээ — «Жагсаалт хадгалах» дарж хадгална уу.</div>';draw()};
+  const ft=document.getElementById("rtFromTxt");if(ft)ft.onclick=()=>{RED=parseRoster(ta.value);draw()};
+  draw()}
 function parseRoster(t){return t.split(/\r?\n/).map(l=>l.trim()).filter(Boolean).map(l=>{const p=l.split(/\t|,|;/).map(x=>x.trim());return {code:p[0]||"",name:p[1]||"",group:p[2]||""}}).filter(r=>/^[A-Za-zА-Яа-я0-9._-]{5,20}$/.test(r.code)&&/\d/.test(r.code)&&r.name)}
 async function teacherPost(body,msgId){const m=document.getElementById(msgId);m.innerHTML='<p class="small muted">Хадгалж байна…</p>';
   try{const r=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(Object.assign({pw:teacherPw},body))});const j=await r.json();
@@ -867,7 +889,8 @@ const TTS=(()=>{
 /* ---------- router ---------- */
 function render(){
   const h=location.hash.slice(1)||"home";let html;
-  if(!AUTH&&!UNLOCK&&!h.startsWith("teacher"))html=viewLogin();
+  if(!AUTH&&!UNLOCK&&GUEST&&!h.startsWith("teacher"))html=(h==="home"?viewHome():viewGuestLock());
+  else if(!AUTH&&!UNLOCK&&!h.startsWith("teacher"))html=viewLogin();
   else if(h.startsWith("lecture-"))html=viewLecture(+h.split("-")[1]);
   else if(h.startsWith("test-"))html=viewTest(+h.split("-")[1]);
   else if(h.startsWith("teacher"))html=viewTeacher();
@@ -884,6 +907,8 @@ function render(){
   const rf=document.getElementById("regf");if(rf)rf.addEventListener("submit",e=>{e.preventDefault();const n=document.getElementById("rnm").value.trim(),g=document.getElementById("rgr").value.trim(),c=document.getElementById("rcd").value.trim();if(!n||!g)return;store.set("me",{name:n,group:g,code:c});apiPost({action:"register"}).catch(()=>{});render()});
   const pf=document.getElementById("pwf");if(pf)pf.addEventListener("submit",async e=>{e.preventDefault();const v=document.getElementById("pw").value;const pm=document.getElementById("pwm");pm.innerHTML='<p class="muted small">Шалгаж байна…</p>';const r=await loadTeacher(v);if(r==="ok"){UNLOCK=true;ss.set("tpw",v);render()}else pm.innerHTML=`<div class="status bad">${r==="bad"?"Нууц үг буруу байна.":"Сервертэй холбогдож чадсангүй. API хаягаа шалгана уу."}</div>`});
   const lg=document.getElementById("lgf");if(lg)lg.addEventListener("submit",doLogin);
+  const gb=document.getElementById("guestBtn");if(gb)gb.onclick=()=>{GUEST=true;ss.set("guest","1");location.hash="home";render()};
+  document.querySelectorAll("[data-guestout]").forEach(x=>x.onclick=e=>{e.preventDefault();GUEST=false;ss.set("guest","");location.hash="home";render()});
   labBind();
   const bt=document.getElementById("bdText");if(bt){let tmo=0;bt.addEventListener("input",()=>{clearTimeout(tmo);tmo=setTimeout(()=>bdSave(+bt.dataset.bd,bt.value),600)})}
   const cb=document.getElementById("clcB"),ci=document.getElementById("clc"),cr=document.getElementById("clcR");
@@ -899,6 +924,7 @@ function render(){
   document.querySelectorAll("[data-th]").forEach(b=>b.onclick=()=>{const k=b.dataset.th;THEME={id:k};applyTheme(THEME);const ai=document.getElementById("accIn");if(ai)ai.value=THEMES[k].accent;document.querySelectorAll("[data-th]").forEach(x=>x.classList.toggle("on",x===b))});
   const ai=document.getElementById("accIn");if(ai)ai.oninput=()=>{THEME=Object.assign({id:(THEME&&THEME.id)||"red"},THEME,{accent:ai.value});applyTheme(THEME)};
   const ts=document.getElementById("thSave");if(ts)ts.onclick=async()=>{const t=THEME||{id:"red"};if(await teacherPost({action:"setTheme",theme:t},"thMsg"))store.set("theme",t)};
+  rosterBind();
   const rs=document.getElementById("rsSave");if(rs)rs.onclick=async()=>{const list=parseRoster(document.getElementById("rosterIn").value);if(!list.length){document.getElementById("rsMsg").innerHTML='<div class="status bad">Жагсаалт хоосон эсвэл буруу хэлбэртэй.</div>';return}if(await teacherPost({action:"setRoster",roster:list},"rsMsg")){ROSTER=list;document.querySelector("#view h2+p+textarea")}};
   const rb=document.getElementById("refr");if(rb)rb.onclick=async()=>{rb.textContent="…";await loadTeacher(teacherPw);render()};
   document.querySelectorAll("[data-dl]").forEach(b=>{b.onclick=()=>{const a=document.createElement("a");a.href="pdf/"+b.dataset.dl;a.download=b.dataset.dl;document.body.appendChild(a);a.click();a.remove()}});
