@@ -410,10 +410,11 @@ function nav(){
   let s=a("home","Нүүр","home")+`<button type="button" class="lecgrp" id="lecTg" aria-expanded="${open}" aria-controls="lecList">Лекц <span class="cnt">12</span>${!open&&lm?`<span class="cur">· ${pad(lm[2])}</span>`:""}<svg class="chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button><div class="sub${open?"":" closed"}" id="lecList">`+D.lec.map(l=>`<a href="#lecture-${l.n}" class="${h==="lecture-"+l.n||h==="test-"+l.n?"on":""}"><span class="n">${pad(l.n)}</span>${esc(short(l.t))}${bestOf(l.n)!=null?'<span class="dot"></span>':""}</a>`).join("")+'</div>';
   s+='<div class="grp">Бие даалт</div>'+`<a href="#bd" class="${h==="bd"||/^bd-/.test(h)?"on":""}">${ic.lab}Бие даалтын ажил</a>`+`<a href="#drill-1" class="${/^drill/.test(h)?"on":""}">${ic.calc}Бодлогын дасгал</a>`+'<div class="grp">Лаборатори</div>'+`<a href="#lab" class="${h==="lab"||/^lab-/.test(h)?"on":""}">${ic.lab}Лабораторийн ажил</a>`;
   s+='<div class="grp">Шалгалт</div>'+a("tests","Лекцийн тестүүд","test")+a("final","Улирлын шалгалт (30 оноо)","star")+a("my","Миний оноо","me");
-  s+='<div class="grp">Багш</div>'+a("teacher","Оюутны дүн","lock")+(UNLOCK?a("settings","Тохиргоо","tbl"):"");
+  s+='<div class="grp">Багш</div>'+a("teacher","Оюутны дүн","lock")+(UNLOCK?a("settings","Тохиргоо","tbl")+`<a href="#teacher" id="tout">${ic.lock}Багш гарах</a>`:"");
   if(AUTH)s+=`<div class="userchip">${ic.me}<span>${esc(AUTH.name)}<br><span style="opacity:.7">${esc(AUTH.code)}</span></span><button id="lgout" type="button">Гарах</button></div>`;
   document.getElementById("nav").innerHTML=s;
   const lo=document.getElementById("lgout");if(lo)lo.onclick=logout;
+  const to=document.getElementById("tout");if(to)to.onclick=()=>{ss.set("tpw","");UNLOCK=false;teacherRows=null;setTimeout(render,0)};
   const tg=document.getElementById("lecTg");if(tg)tg.onclick=()=>{const o=!store.get("lecOpen",false);store.set("lecOpen",o);tg.setAttribute("aria-expanded",o);document.getElementById("lecList").classList.toggle("closed",!o);const c=tg.querySelector(".cur");if(c)c.hidden=o};
 }
 function short(t){const s=t.split(/[.:]/)[0];return s.length>36?s.slice(0,34)+"…":s}
@@ -655,7 +656,7 @@ function viewTeacher(){
   if(teacherErr)return `<section class="card"><h2>Оюутны дүн</h2><div class="status bad">${esc(teacherErr)}</div></section>`;
   if(!teacherRows)return `<section class="card"><h2>Оюутны дүн</h2><p class="muted">Ачаалж байна…</p></section>`;
   const rows=sortedRows();
-  const head=`<div class="formrow" style="justify-content:space-between"><h1 style="font-size:24px">Оюутны дүн</h1><span class="formrow" style="gap:8px"><button class="btn ghost" id="refr">Шинэчлэх</button><button class="btn pri" id="prAll">Хэвлэх</button><button class="btn ghost" id="csv">Excel (CSV) татах</button></span></div>`;
+  const head=`<div class="formrow" style="justify-content:space-between"><h1 style="font-size:24px">Оюутны дүн</h1><span class="formrow" style="gap:8px"><a class="btn ghost" href="#lab">🧪 Лаборатори</a><a class="btn ghost" href="#bd">Бие даалт</a><button class="btn ghost" id="refr">Шинэчлэх</button><button class="btn pri" id="prAll">Хэвлэх</button><button class="btn ghost" id="csv">Excel (CSV) татах</button></span></div>`;
   if(!rows.length)return `<div class="layout full"><div class="col">${head}<section class="card"><div class="empty"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/></svg><p>Одоогоор бүртгэгдсэн оюутан алга. Оюутан хичээл үзэж, тест өгмөгц энд шууд гарна.</p></div></section></div></div>`;
   return `<div class="layout full"><div class="col">${head}
   <section class="card"><p class="small muted">${rows.length} оюутан · лекцийн тест бүрийн хамгийн сайн дүн · нэр дээр дарж дэлгэрэнгүйг (өдөр бүрийн үзсэн цаг) харна.</p><div class="tbl"><table class="gradetbl"><tr><th>№</th><th>Нэр</th><th>Анги</th><th>Код</th>${D.lec.map(l=>`<th class="c">Т${l.n}</th>`).join("")}<th class="c">Тест /120</th>${D.bd.map(b=>`<th class="c">БД${b.n}</th>`).join("")}<th class="c">БД /${D.bd.length*5}</th><th class="c">Шалгалт /30</th><th class="c">Үзсэн цаг</th><th class="c">Өдөр</th></tr>
@@ -699,7 +700,7 @@ function printHtml(html){const w=window.open("","_blank");if(!w){save("EEA721_he
    Лекцийн бичвэр tts/lecNN.json-д (PDF-ээс гаргасан: гарчиг h, догол мөр p, томьёо eq, зураг/хүснэгтийн тайлбар cap).
    Монгол дуу хоолой (mn-MN) — Microsoft Edge хөтчийн «Microsoft Bataa / Yesui Online (Natural) — Mongolian».
    Монгол дуу хоолойгүй хөтчид бусад дуу хоолойг сонгож болно (кирилл бичгийг ойролцоо уншина). */
-const ART_URL="https://gantumur2020-spec.github.io/EEA-721/";
+const ART_URL="https://gantumur2020-spec.github.io/IEEA721/";
 const TTS=(()=>{
   const syn=("speechSynthesis" in window)?window.speechSynthesis:null;
   let lec=0,blocks=null,idx=0,parts=[],pi=0,playing=false,paused=false,voices=[],gen=0;
@@ -881,7 +882,7 @@ function render(){
   const tf=document.getElementById("tf");if(tf)tf.addEventListener("submit",submitForm);
   const sf=document.getElementById("startF");if(sf)sf.onclick=startFinal;
   const rf=document.getElementById("regf");if(rf)rf.addEventListener("submit",e=>{e.preventDefault();const n=document.getElementById("rnm").value.trim(),g=document.getElementById("rgr").value.trim(),c=document.getElementById("rcd").value.trim();if(!n||!g)return;store.set("me",{name:n,group:g,code:c});apiPost({action:"register"}).catch(()=>{});render()});
-  const pf=document.getElementById("pwf");if(pf)pf.addEventListener("submit",async e=>{e.preventDefault();const v=document.getElementById("pw").value;const pm=document.getElementById("pwm");pm.innerHTML='<p class="muted small">Шалгаж байна…</p>';const r=await loadTeacher(v);if(r==="ok"){UNLOCK=true;render()}else pm.innerHTML=`<div class="status bad">${r==="bad"?"Нууц үг буруу байна.":"Сервертэй холбогдож чадсангүй. API хаягаа шалгана уу."}</div>`});
+  const pf=document.getElementById("pwf");if(pf)pf.addEventListener("submit",async e=>{e.preventDefault();const v=document.getElementById("pw").value;const pm=document.getElementById("pwm");pm.innerHTML='<p class="muted small">Шалгаж байна…</p>';const r=await loadTeacher(v);if(r==="ok"){UNLOCK=true;ss.set("tpw",v);render()}else pm.innerHTML=`<div class="status bad">${r==="bad"?"Нууц үг буруу байна.":"Сервертэй холбогдож чадсангүй. API хаягаа шалгана уу."}</div>`});
   const lg=document.getElementById("lgf");if(lg)lg.addEventListener("submit",doLogin);
   labBind();
   const bt=document.getElementById("bdText");if(bt){let tmo=0;bt.addEventListener("input",()=>{clearTimeout(tmo);tmo=setTimeout(()=>bdSave(+bt.dataset.bd,bt.value),600)})}
@@ -908,6 +909,7 @@ function render(){
 window.addEventListener("hashchange",()=>{if(cur&&cur.kind==="f"&&!cur.done&&location.hash!=="#final"){location.hash="final";return}render();window.scrollTo(0,0)});
 document.getElementById("menuBtn").onclick=()=>document.getElementById("side").classList.toggle("show");
 document.getElementById("q").addEventListener("input",e=>{const v=e.target.value.trim().toLowerCase();if(!v)return;const l=D.lec.find(x=>(x.t+" "+x.kw.join(" ")).toLowerCase().includes(v));if(l&&location.hash!=="#lecture-"+l.n)location.hash="lecture-"+l.n});
+if(ss.get("tpw")&&!UNLOCK){UNLOCK=true;loadTeacher(ss.get("tpw")).then(r=>{if(r==="bad"){UNLOCK=false;ss.set("tpw","")}render()})}
 render();
 loadSettings();loadMyBD();
 
